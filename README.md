@@ -16,7 +16,7 @@ README.md: Hướng dẫn sử dụng.
 2. Cài đặt các thư viện cần thiết:
    Mở terminal (hoặc Command Prompt) và chạy lệnh sau để cài đặt các thư viện xử lý tín hiệu y sinh và hiển thị:
 
-- pip install mne matplotlib numpy
+- pip3 install mne matplotlib pandas yasa
 
 🛠 Cách chạy dự án
 Mở file index.ipynb bằng VS Code (đã cài extension Jupyter) hoặc chạy lệnh jupyter notebook trong thư mục dự án.
