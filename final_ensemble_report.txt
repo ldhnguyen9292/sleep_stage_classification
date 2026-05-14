@@ -1,0 +1,108 @@
+==============================================================
+  SLEEP STAGE CLASSIFICATION — FINAL ENSEMBLE RESULTS
+==============================================================
+  Generated : 2026-05-14T09:18:18
+  Ensemble  : 5 fold models
+
+── MODEL ARCHITECTURE ──────────────────────────────────────────
+  BiLSTM + Additive Attention
+  Input features  : 10  (7 raw + 3 engineered ratios)
+  Hidden size     : 256 per direction  (512 bidirectional)
+  LSTM layers     : 2
+  Classifier input: 1024  (centre concat attention context)
+  Dropout         : 0.35
+  Window size     : 31 epochs  (15.5 min bilateral context)
+  Total params    : 2,133,529
+
+── INTERNAL VALIDATION  (5-Fold CV — Cassette recordings) ──────
+  Recordings : 153  |  OOF epochs : 190,889
+
+  Summary across folds (from kfold_summary.json):
+    Macro F1  : 0.7423 ± 0.0136
+    Kappa     : 0.7158 ± 0.0139
+    Per-class F1 (mean ± std across folds):
+      Wake    0.8899 ± 0.0050
+      N1      0.4507 ± 0.0161
+      N2      0.8223 ± 0.0137
+      N3      0.7686 ± 0.0161
+      REM     0.7798 ± 0.0312
+
+  Fold breakdown (best EMA val macro-F1):
+    Fold 0  0.7550
+    Fold 1  0.7520
+    Fold 2  0.7412
+    Fold 3  0.7125
+    Fold 4  0.7444
+
+  OOF aggregate results (all 5 val folds combined):
+    Macro F1  : 0.7425
+    Kappa     : 0.7161
+    Per-class F1:
+      Wake    0.8896
+      N1      0.4517
+      N2      0.8229
+      N3      0.7684
+      REM     0.7800
+
+  Classification report (OOF aggregate):
+              precision    recall  f1-score   support
+
+        Wake       0.90      0.88      0.89     61380
+          N1       0.45      0.45      0.45     21511
+          N2       0.82      0.82      0.82     69124
+          N3       0.77      0.77      0.77     13039
+         REM       0.77      0.79      0.78     25835
+
+    accuracy                           0.79    190889
+   macro avg       0.74      0.74      0.74    190889
+weighted avg       0.79      0.79      0.79    190889
+
+  Confusion matrix (OOF aggregate, raw counts):
+            Wake      N1      N2      N3     REM
+  Wake     54137    4705    1307     139    1092
+  N1        4102    9757    5501     110    2041
+  N2        1138    5410   56975    2753    2848
+  N3          79      72    2802   10064      22
+  REM        875    1749    2767      89   20355
+
+── EXTERNAL VALIDATION  (Ensemble — Telemetry recordings) ───────
+  Recordings : 44  |  Epochs : 41,151
+  NOTE: Telemetry differs from training Cassette data.
+        emg_rms KL-divergence = 19.6 → lower scores expected.
+
+  Macro F1  : 0.2321
+  Kappa     : 0.1288
+  Per-class F1:
+    Wake    0.4661
+    N1      0.0757
+    N2      0.0883
+    N3      0.0000
+    REM     0.5307
+
+  Classification report:
+              precision    recall  f1-score   support
+
+        Wake       0.43      0.51      0.47      3257
+          N1       0.05      0.22      0.08      3525
+          N2       0.84      0.05      0.09     19659
+          N3       0.00      0.00      0.00      6399
+         REM       0.38      0.88      0.53      8311
+
+    accuracy                           0.26     41151
+   macro avg       0.34      0.33      0.23     41151
+weighted avg       0.52      0.26      0.19     41151
+
+  Confusion matrix (raw counts):
+            Wake      N1      N2      N3     REM
+  Wake      1665     288       0       0    1304
+  N1         663     772       1       0    2089
+  N2         815   10597     916       0    7331
+  N3         206    4795     154       0    1244
+  REM        538     431      18       0    7324
+
+── ARTEFACTS ───────────────────────────────────────────────────
+  confusion_matrix_internal_oof.png
+  confusion_matrix_final_ensemble.png
+  final_ensemble_report.json
+  kfold_summary.json
+==============================================================
