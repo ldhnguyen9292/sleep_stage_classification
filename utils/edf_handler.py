@@ -24,7 +24,8 @@ def generate_epochs_from_edf(psg_file, hyp_file, duration=30):
         'Sleep stage 2': 2,
         'Sleep stage 3': 3,
         'Sleep stage 4': 3,  # Gộp stage 3 và 4 thành stage 3 (N3)
-        'Sleep stage R': 4
+        'Sleep stage R': 4,
+        'Sleep stage ?': -1  # Đoạn chưa rõ stage, có thể bỏ qua hoặc gán nhãn riêng tùy mục đích
     }
 
     events, event_id = mne.events_from_annotations(
