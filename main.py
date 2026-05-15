@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
+
 from config import (
     BATCH_SIZE,
     CHECKPOINT_DIR,
@@ -40,17 +41,17 @@ from config import (
     RESULTS_DIR,
     SEED,
 )
-from data_utils import (
+from model_development.data_utils import (
     compute_class_weights,
     discover_files,
     fit_scaler,
     save_scaler,
     split_files,
 )
-from dataset import SleepWindowDataset
-from evaluate import compute_metrics, plot_confusion_matrix, save_metrics, get_predictions
-from model import BiLSTMSleepStager
-from train import train
+from model_development.dataset import SleepWindowDataset
+from model_development.evaluate import compute_metrics, plot_confusion_matrix, save_metrics, get_predictions
+from model_development.model import BiLSTMSleepStager
+from model_development.train import train
 
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
@@ -68,7 +69,8 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark     = False  # disable auto-tuner (non-deterministic)
+    # disable auto-tuner (non-deterministic)
+    torch.backends.cudnn.benchmark = False
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -92,10 +94,11 @@ def main() -> None:
                     torch.cuda.get_device_name(0),
                     torch.cuda.get_device_properties(0).total_memory / 1e9)
     else:
-        logger.info("No GPU detected — training on CPU (slower but fully functional)")
+        logger.info(
+            "No GPU detected — training on CPU (slower but fully functional)")
 
     # ── Discover & split files ────────────────────────────────────────────────
-    all_files              = discover_files(INTERNAL_DIR)
+    all_files = discover_files(INTERNAL_DIR)
     train_files, val_files = split_files(all_files)
 
     # Persist the split so results are reproducible and auditable.
@@ -119,7 +122,7 @@ def main() -> None:
     # ── Datasets ──────────────────────────────────────────────────────────────
     logger.info("Building sliding-window datasets …")
     train_dataset = SleepWindowDataset(train_files, scaler)
-    val_dataset   = SleepWindowDataset(val_files,   scaler)
+    val_dataset = SleepWindowDataset(val_files,   scaler)
 
     logger.info(
         "Train samples: %s  |  Val samples: %s",

@@ -14,6 +14,10 @@ Usage:
 Outputs saved to results/eda/
 """
 
+
+from scipy import stats
+
+
 import os
 import sys
 import logging
@@ -22,26 +26,31 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
 import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy import stats
+
 from sklearn.feature_selection import mutual_info_classif
 
+from config import FEATURE_COLS, LABEL_COL, CLASS_NAMES, NUM_CLASSES, INTERNAL_DIR, EXTERNAL_DIR, RESULTS_DIR
+from model_development.data_utils import discover_files, load_recording
+
+matplotlib.use("Agg")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import FEATURE_COLS, LABEL_COL, CLASS_NAMES, NUM_CLASSES, INTERNAL_DIR, EXTERNAL_DIR
-from data_utils import discover_files, load_recording
 
 warnings.filterwarnings("ignore", category=FutureWarning)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
-EDA_DIR = Path(__file__).resolve().parent / "results" / "eda"
+EDA_DIR = RESULTS_DIR / "eda"
 EDA_DIR.mkdir(parents=True, exist_ok=True)
 
-PALETTE = {0: "#4878CF", 1: "#6ACC65", 2: "#D65F5F", 3: "#B47CC7", 4: "#C4AD66"}
+PALETTE = {0: "#4878CF", 1: "#6ACC65",
+           2: "#D65F5F", 3: "#B47CC7", 4: "#C4AD66"}
 STAGE_COLORS = [PALETTE[i] for i in range(NUM_CLASSES)]
 
 
@@ -55,7 +64,8 @@ def load_all(files, source_tag="internal"):
         df["recording_type"] = "cassette" if "cassette" in f.name else "telemetry"
         dfs.append(df)
     combined = pd.concat(dfs, ignore_index=True)
-    logger.info("Loaded %d epochs from %d files (%s)", len(combined), len(files), source_tag)
+    logger.info("Loaded %d epochs from %d files (%s)",
+                len(combined), len(files), source_tag)
     return combined
 
 
@@ -76,12 +86,14 @@ def plot_class_distribution(df_int, df_ext):
         ax.set_title(title, fontsize=12, fontweight="bold")
         ax.set_xlabel("Sleep stage")
         ax.set_ylabel("Epoch count")
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
 
     plt.suptitle("Class distribution — imbalance diagnostic", fontsize=13)
     plt.tight_layout()
     out = EDA_DIR / "01_class_distribution.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
 
@@ -100,14 +112,16 @@ def plot_log_transform_effect(df):
 
         # Raw histogram
         ax_raw = axes[0, col_idx]
-        ax_raw.hist(vals, bins=60, color="#4878CF", alpha=0.75, edgecolor="none")
+        ax_raw.hist(vals, bins=60, color="#4878CF",
+                    alpha=0.75, edgecolor="none")
         ax_raw.set_title(f"{feat.replace('eeg_','').replace('_power','')}\nskew={sk_raw:.1f}",
                          fontsize=8)
         ax_raw.set_yticks([])
 
         # Log histogram
         ax_log = axes[1, col_idx]
-        ax_log.hist(log_vals, bins=60, color="#D65F5F", alpha=0.75, edgecolor="none")
+        ax_log.hist(log_vals, bins=60, color="#D65F5F",
+                    alpha=0.75, edgecolor="none")
         ax_log.set_title(f"log → skew={sk_log:.2f}", fontsize=8)
         ax_log.set_yticks([])
 
@@ -120,7 +134,8 @@ def plot_log_transform_effect(df):
     )
     plt.tight_layout()
     out = EDA_DIR / "02_log_transform_effect.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
 
@@ -132,12 +147,14 @@ def plot_feature_by_stage(df):
         log_df[feat] = np.log(np.maximum(log_df[feat].values, 1e-30))
 
     n_feat = len(FEATURE_COLS)
-    fig, axes = plt.subplots(1, n_feat, figsize=(3.5 * n_feat, 5), sharey=False)
+    fig, axes = plt.subplots(
+        1, n_feat, figsize=(3.5 * n_feat, 5), sharey=False)
 
     for ax, feat in zip(axes, FEATURE_COLS):
-        data_by_class = [log_df[log_df[LABEL_COL] == i][feat].values for i in range(NUM_CLASSES)]
+        data_by_class = [log_df[log_df[LABEL_COL] == i]
+                         [feat].values for i in range(NUM_CLASSES)]
         parts = ax.violinplot(data_by_class, positions=range(NUM_CLASSES),
-                               showmedians=True, showextrema=False)
+                              showmedians=True, showextrema=False)
         for pc, color in zip(parts["bodies"], STAGE_COLORS):
             pc.set_facecolor(color)
             pc.set_alpha(0.75)
@@ -150,10 +167,12 @@ def plot_feature_by_stage(df):
         ax.set_xticklabels(CLASS_NAMES, fontsize=8)
 
     axes[0].set_ylabel("log(power)")
-    plt.suptitle("Log-transformed feature distributions by sleep stage", fontsize=12)
+    plt.suptitle(
+        "Log-transformed feature distributions by sleep stage", fontsize=12)
     plt.tight_layout()
     out = EDA_DIR / "03_feature_by_stage.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
 
@@ -161,7 +180,7 @@ def plot_feature_by_stage(df):
 
 def plot_feature_discriminability(df):
     X_log = np.log(np.maximum(df[FEATURE_COLS].values, 1e-30))
-    y     = df[LABEL_COL].values
+    y = df[LABEL_COL].values
 
     # Mutual information (non-parametric)
     mi_scores = mutual_info_classif(X_log, y, random_state=42, n_neighbors=5)
@@ -173,7 +192,8 @@ def plot_feature_discriminability(df):
         f_val, _ = stats.f_oneway(*groups)
         f_stats.append(f_val)
 
-    short_names = [f.replace("eeg_", "").replace("_power", "") for f in FEATURE_COLS]
+    short_names = [f.replace("eeg_", "").replace("_power", "")
+                   for f in FEATURE_COLS]
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4))
 
@@ -191,10 +211,12 @@ def plot_feature_discriminability(df):
     axes[1].set_xlabel("ANOVA F-statistic (higher = better class separation)")
     axes[1].set_title("One-way ANOVA F-statistic vs sleep stage label")
 
-    plt.suptitle("Feature discriminability for sleep stage classification", fontsize=12)
+    plt.suptitle(
+        "Feature discriminability for sleep stage classification", fontsize=12)
     plt.tight_layout()
     out = EDA_DIR / "04_feature_discriminability.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
     # Print table
@@ -211,7 +233,8 @@ def plot_feature_discriminability(df):
 def plot_correlation(df):
     X_log = pd.DataFrame(
         np.log(np.maximum(df[FEATURE_COLS].values, 1e-30)),
-        columns=[f.replace("eeg_", "").replace("_power", "") for f in FEATURE_COLS],
+        columns=[f.replace("eeg_", "").replace("_power", "")
+                 for f in FEATURE_COLS],
     )
     corr = X_log.corr(method="pearson")
 
@@ -225,7 +248,8 @@ def plot_correlation(df):
     ax.set_title("Pearson correlation — log-transformed features", fontsize=12)
     plt.tight_layout()
     out = EDA_DIR / "05_feature_correlation.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
 
@@ -251,7 +275,8 @@ def plot_domain_shift(df_int, df_ext):
 
     for ax, feat in zip(axes, FEATURE_COLS):
         for domain, color, ls in [("cassette", "#4878CF", "-"), ("telemetry", "#D65F5F", "--")]:
-            vals = combined_n2[combined_n2["recording_type"] == domain][feat].dropna()
+            vals = combined_n2[combined_n2["recording_type"]
+                               == domain][feat].dropna()
             if len(vals) == 0:
                 continue
             kde_xs = np.linspace(vals.min(), vals.max(), 300)
@@ -271,7 +296,8 @@ def plot_domain_shift(df_int, df_ext):
     )
     plt.tight_layout()
     out = EDA_DIR / "06_domain_shift.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     logger.info("Saved → %s", out)
 
 
@@ -292,7 +318,8 @@ def print_summary(df_int, df_ext):
     print("\nRaw feature skewness (internal):")
     for feat in FEATURE_COLS:
         sk = stats.skew(df_int[feat].dropna())
-        sk_log = stats.skew(np.log(np.maximum(df_int[feat].dropna().values, 1e-30)))
+        sk_log = stats.skew(
+            np.log(np.maximum(df_int[feat].dropna().values, 1e-30)))
         short = feat.replace("eeg_", "").replace("_power", "")
         print(f"  {short:<18}  raw={sk:>6.2f}   log={sk_log:>6.3f}")
 
@@ -303,7 +330,8 @@ def print_summary(df_int, df_ext):
         v1 = np.log(np.maximum(n2_int[feat].dropna().values, 1e-30))
         v2 = np.log(np.maximum(n2_ext[feat].dropna().values, 1e-30))
         # Approximate KL via histograms
-        bins = np.linspace(min(v1.min(), v2.min()), max(v1.max(), v2.max()), 50)
+        bins = np.linspace(min(v1.min(), v2.min()),
+                           max(v1.max(), v2.max()), 50)
         p, _ = np.histogram(v1, bins=bins, density=True)
         q, _ = np.histogram(v2, bins=bins, density=True)
         p, q = p + 1e-9, q + 1e-9
@@ -318,11 +346,11 @@ def print_summary(df_int, df_ext):
 def main():
     logger.info("Loading internal files …")
     int_files = discover_files(INTERNAL_DIR)
-    df_int    = load_all(int_files, "internal")
+    df_int = load_all(int_files, "internal")
 
     logger.info("Loading external files …")
     ext_files = discover_files(EXTERNAL_DIR)
-    df_ext    = load_all(ext_files, "external")
+    df_ext = load_all(ext_files, "external")
 
     print_summary(df_int, df_ext)
 
@@ -336,9 +364,12 @@ def main():
 
     logger.info("All EDA plots saved to %s", EDA_DIR)
     logger.info("Key findings:")
-    logger.info("  1. All 7 features are heavily right-skewed → log transform is mandatory before scaling")
-    logger.info("  2. N3 (6.7%%) and N1 (11%%) are rare → class weighting is essential")
-    logger.info("  3. Internal=Cassette, External=Telemetry → domain shift expected on holdout")
+    logger.info(
+        "  1. All 7 features are heavily right-skewed → log transform is mandatory before scaling")
+    logger.info(
+        "  2. N3 (6.7%%) and N1 (11%%) are rare → class weighting is essential")
+    logger.info(
+        "  3. Internal=Cassette, External=Telemetry → domain shift expected on holdout")
 
 
 if __name__ == "__main__":

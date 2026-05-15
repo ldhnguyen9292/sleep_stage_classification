@@ -3,12 +3,11 @@ import os
 import pandas as pd
 from datetime import timedelta
 
-CSV_DIR = 'processed_data'
 EDF_DIR = 'sleep-edf-database-expanded-1.0.0/sleep-cassette'
 
 
-def get_file_lists():
-    csv_files = sorted([f for f in os.listdir(CSV_DIR) if f.endswith('.csv')])
+def get_file_lists(path):
+    csv_files = sorted([f for f in os.listdir(path) if f.endswith('.csv')])
     return csv_files
 
 

@@ -44,14 +44,14 @@ from config import (
     INTERNAL_DIR, K_FOLDS, NUM_CLASSES, NUM_LAYERS, NUM_WORKERS,
     PIN_MEMORY, RESULTS_DIR, SEED,
 )
-from data_utils import (
+from model_development.data_utils import (
     compute_class_weights, discover_files, fit_scaler, load_recording,
     save_scaler,
 )
-from dataset import SleepWindowDataset
-from evaluate import compute_metrics, get_predictions, plot_confusion_matrix, save_metrics
-from model import BiLSTMSleepStager
-from train import train
+from model_development.dataset import SleepWindowDataset
+from model_development.evaluate import compute_metrics, get_predictions, plot_confusion_matrix, save_metrics
+from model_development.model import BiLSTMSleepStager
+from model_development.train import train
 
 
 logging.basicConfig(
@@ -68,7 +68,7 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark     = False
+    torch.backends.cudnn.benchmark = False
 
 
 def get_majority_labels(files):
@@ -88,7 +88,7 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s | K=%d folds", device, n_splits)
 
-    all_files      = discover_files(INTERNAL_DIR)
+    all_files = discover_files(INTERNAL_DIR)
     majority_labels = get_majority_labels(all_files)
 
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
@@ -103,38 +103,42 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
         logger.info("=" * 60)
 
         train_files = [all_files[i] for i in train_idx]
-        val_files   = [all_files[i] for i in val_idx]
-        logger.info("Train: %d files | Val: %d files", len(train_files), len(val_files))
+        val_files = [all_files[i] for i in val_idx]
+        logger.info("Train: %d files | Val: %d files",
+                    len(train_files), len(val_files))
 
         fold_dir = CHECKPOINT_DIR / f"fold_{fold}"
         fold_dir.mkdir(parents=True, exist_ok=True)
 
         # Fit scaler and weights on THIS fold's training data only
-        scaler  = fit_scaler(train_files)
+        scaler = fit_scaler(train_files)
         weights = compute_class_weights(train_files)
         save_scaler(scaler, fold_dir / "scaler.pkl")
 
         train_ds = SleepWindowDataset(train_files, scaler)
-        val_ds   = SleepWindowDataset(val_files,   scaler)
+        val_ds = SleepWindowDataset(val_files,   scaler)
         logger.info("Train samples: %s | Val samples: %s",
                     f"{len(train_ds):,}", f"{len(val_ds):,}")
 
         # sqrt-inverse sampler for stable gradients (see main.py for rationale)
         sqrt_w = np.sqrt(weights)
-        sample_weights = torch.tensor(sqrt_w[train_ds._labels], dtype=torch.float32)
-        sampler = WeightedRandomSampler(sample_weights, len(train_ds), replacement=True)
+        sample_weights = torch.tensor(
+            sqrt_w[train_ds._labels], dtype=torch.float32)
+        sampler = WeightedRandomSampler(
+            sample_weights, len(train_ds), replacement=True)
 
         use_pin = PIN_MEMORY and device.type == "cuda"
         train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, sampler=sampler,
                                   num_workers=NUM_WORKERS, pin_memory=use_pin)
-        val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
-                                  num_workers=NUM_WORKERS, pin_memory=use_pin)
+        val_loader = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
+                                num_workers=NUM_WORKERS, pin_memory=use_pin)
 
         model = BiLSTMSleepStager(
             input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE,
             num_layers=NUM_LAYERS, num_classes=NUM_CLASSES, dropout=DROPOUT,
         )
-        n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        n_params = sum(p.numel()
+                       for p in model.parameters() if p.requires_grad)
         logger.info("Model params: %s", f"{n_params:,}")
 
         # train() saves best_model.pt to fold_dir automatically
@@ -154,15 +158,16 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
     logger.info("=" * 60)
 
     from config import CLASS_NAMES
-    macro_f1s = [m["macro_f1"]   for m in fold_results]
-    kappas    = [m["kappa"]      for m in fold_results]
+    macro_f1s = [m["macro_f1"] for m in fold_results]
+    kappas = [m["kappa"] for m in fold_results]
 
     logger.info("Macro F1: %.4f ± %.4f", np.mean(macro_f1s), np.std(macro_f1s))
     logger.info("Kappa   : %.4f ± %.4f", np.mean(kappas),    np.std(kappas))
     logger.info("Per-class F1 (mean ± std):")
     for cls in CLASS_NAMES:
         scores = [m["per_cls_f1"][cls] for m in fold_results]
-        logger.info("  %-6s  %.4f ± %.4f", cls, np.mean(scores), np.std(scores))
+        logger.info("  %-6s  %.4f ± %.4f", cls,
+                    np.mean(scores), np.std(scores))
 
     # Persist summary
     summary = {
@@ -171,7 +176,7 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
         "kappa":    {"mean": float(np.mean(kappas)),    "std": float(np.std(kappas))},
         "per_cls_f1": {
             cls: {"mean": float(np.mean([m["per_cls_f1"][cls] for m in fold_results])),
-                  "std":  float(np.std( [m["per_cls_f1"][cls] for m in fold_results]))}
+                  "std":  float(np.std([m["per_cls_f1"][cls] for m in fold_results]))}
             for cls in CLASS_NAMES
         },
         "fold_results": [
@@ -183,7 +188,8 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
     with open(RESULTS_DIR / "kfold_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
     logger.info("Summary saved → %s", RESULTS_DIR / "kfold_summary.json")
-    logger.info("Run  python ensemble_external_validation.py  for holdout evaluation.")
+    logger.info(
+        "Run  python ensemble_external_validation.py  for holdout evaluation.")
 
 
 if __name__ == "__main__":
