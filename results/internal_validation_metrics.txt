@@ -1,0 +1,23 @@
+=== INTERNAL_VALIDATION METRICS ===
+
+              precision    recall  f1-score   support
+
+        Wake       0.56      0.70      0.62      1383
+          N1       0.46      0.50      0.48      2165
+          N2       0.87      0.79      0.83      9447
+          N3       0.78      0.81      0.80      2173
+         REM       0.79      0.85      0.82      3755
+
+    accuracy                           0.77     18923
+   macro avg       0.69      0.73      0.71     18923
+weighted avg       0.78      0.77      0.77     18923
+
+Macro F1 : 0.7091
+Kappa    : 0.6635
+
+Per-class F1:
+  Wake    0.6215
+  N1      0.4786
+  N2      0.8320
+  N3      0.7965
+  REM     0.8168
