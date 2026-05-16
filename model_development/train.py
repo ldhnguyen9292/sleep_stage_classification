@@ -21,16 +21,20 @@ Why EMA for early stopping?
 import logging
 from pathlib import Path
 from typing import Optional, Tuple
-
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+
 from sklearn.metrics import f1_score
-from torch.amp import GradScaler, autocast
+
+try:
+    from torch.amp import GradScaler, autocast          # torch >= 2.3
+except ImportError:
+    from torch.cuda.amp import GradScaler, autocast  # torch < 2.3
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 from config import (
     CHECKPOINT_DIR,
@@ -64,7 +68,7 @@ class FocalLoss(nn.Module):
 
     def __init__(self, gamma: float = 2.0, smoothing: float = LABEL_SMOOTHING) -> None:
         super().__init__()
-        self.gamma     = gamma
+        self.gamma = gamma
         self.smoothing = smoothing
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -74,14 +78,15 @@ class FocalLoss(nn.Module):
         # Build smooth target distribution
         with torch.no_grad():
             smooth_targets = torch.full_like(logits, self.smoothing / (C - 1))
-            smooth_targets.scatter_(1, targets.unsqueeze(1), 1.0 - self.smoothing)
+            smooth_targets.scatter_(
+                1, targets.unsqueeze(1), 1.0 - self.smoothing)
 
         # CE with smooth labels — per sample
         ce_loss = -(smooth_targets * log_prob).sum(dim=1)  # (B,)
 
         # Focal weight based on raw (non-smoothed) probability of true class
         prob = torch.exp(log_prob)
-        pt   = prob.gather(1, targets.unsqueeze(1)).squeeze(1)
+        pt = prob.gather(1, targets.unsqueeze(1)).squeeze(1)
         focal_weight = (1.0 - pt) ** self.gamma
 
         return (focal_weight * ce_loss).mean()
@@ -97,26 +102,27 @@ class EarlyStopping:
 
     def __init__(
         self,
-        patience:  int   = PATIENCE,
-        mode:      str   = "max",
+        patience:  int = PATIENCE,
+        mode:      str = "max",
         min_delta: float = 5e-4,
         ema_alpha: float = EMA_ALPHA,
     ) -> None:
-        self.patience   = patience
-        self.mode       = mode
-        self.min_delta  = min_delta
-        self.ema_alpha  = ema_alpha
-        self.counter    = 0
+        self.patience = patience
+        self.mode = mode
+        self.min_delta = min_delta
+        self.ema_alpha = ema_alpha
+        self.counter = 0
         self.ema_score: Optional[float] = None
         self.best_score: Optional[float] = None
-        self.best_state: Optional[dict]  = None
+        self.best_state: Optional[dict] = None
 
     def step(self, raw_score: float, model: nn.Module) -> bool:
         # Update EMA
         if self.ema_score is None:
             self.ema_score = raw_score
         else:
-            self.ema_score = self.ema_alpha * raw_score + (1 - self.ema_alpha) * self.ema_score
+            self.ema_score = self.ema_alpha * raw_score + \
+                (1 - self.ema_alpha) * self.ema_score
 
         improved = (
             self.best_score is None
@@ -125,8 +131,9 @@ class EarlyStopping:
         )
         if improved:
             self.best_score = self.ema_score
-            self.counter    = 0
-            self.best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            self.counter = 0
+            self.best_state = {k: v.cpu().clone()
+                               for k, v in model.state_dict().items()}
         else:
             self.counter += 1
 
@@ -158,7 +165,7 @@ def _train_one_epoch(
         if use_amp:
             with autocast("cuda"):
                 logits = model(x)
-                loss   = criterion(logits, y)
+                loss = criterion(logits, y)
             grad_scaler.scale(loss).backward()
             grad_scaler.unscale_(optimizer)
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
@@ -166,7 +173,7 @@ def _train_one_epoch(
             grad_scaler.update()
         else:
             logits = model(x)
-            loss   = criterion(logits, y)
+            loss = criterion(logits, y)
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
@@ -192,15 +199,18 @@ def _eval_one_epoch(
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
         if use_amp:
             with autocast("cuda"):
-                logits = model(x); loss = criterion(logits, y)
+                logits = model(x)
+                loss = criterion(logits, y)
         else:
-            logits = model(x); loss = criterion(logits, y)
+            logits = model(x)
+            loss = criterion(logits, y)
         total_loss += loss.item() * x.size(0)
         all_preds.extend(logits.argmax(dim=1).cpu().tolist())
         all_labels.extend(y.cpu().tolist())
 
     mean_loss = total_loss / len(loader.dataset)
-    macro_f1  = f1_score(all_labels, all_preds, average="macro", zero_division=0)
+    macro_f1 = f1_score(all_labels, all_preds,
+                        average="macro", zero_division=0)
     return mean_loss, macro_f1
 
 
@@ -222,13 +232,14 @@ def train(
     save_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = save_dir / "best_model.pt"
 
-    use_amp     = USE_AMP and device.type == "cuda"
+    use_amp = USE_AMP and device.type == "cuda"
     grad_scaler = GradScaler("cuda") if use_amp else None
     if use_amp:
         logger.info("AMP (FP16) enabled")
 
     criterion = FocalLoss(gamma=2.0, smoothing=LABEL_SMOOTHING)
-    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE,
+                      weight_decay=WEIGHT_DECAY)
 
     # CosineAnnealingWarmRestarts: restores LR after each cycle, escaping plateaus.
     # eta_min ensures LR never collapses to 0 (which would freeze learning).
@@ -240,10 +251,11 @@ def train(
     model.to(device)
 
     for epoch in range(1, MAX_EPOCHS + 1):
-        train_loss       = _train_one_epoch(model, train_loader, criterion, optimizer,
-                                             device, grad_scaler, use_amp)
-        val_loss, val_f1 = _eval_one_epoch(model, val_loader, criterion, device, use_amp)
-        current_lr       = optimizer.param_groups[0]["lr"]
+        train_loss = _train_one_epoch(model, train_loader, criterion, optimizer,
+                                      device, grad_scaler, use_amp)
+        val_loss, val_f1 = _eval_one_epoch(
+            model, val_loader, criterion, device, use_amp)
+        current_lr = optimizer.param_groups[0]["lr"]
 
         scheduler.step()   # CosineWarmRestarts steps every epoch
 
@@ -275,5 +287,6 @@ def train(
         },
         checkpoint_path,
     )
-    logger.info("Checkpoint saved → %s  (EMA val F1=%.4f)", checkpoint_path, stopper.best_score)
+    logger.info("Checkpoint saved → %s  (EMA val F1=%.4f)",
+                checkpoint_path, stopper.best_score)
     return model

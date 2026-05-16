@@ -71,7 +71,7 @@ DROPOUT = 0.35
 BATCH_SIZE = 512
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 120
+MAX_EPOCHS = 5
 PATIENCE = 20        # applied to EMA-smoothed val F1, not raw (see train.py)
 # smoothing factor for early-stop metric (reduces oscillation)
 EMA_ALPHA = 0.15

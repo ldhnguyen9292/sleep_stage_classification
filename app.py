@@ -6,11 +6,13 @@ from datetime import timedelta
 import utils.data_utils as du
 import utils.plot_utils as pu
 
+from config import INTERNAL_DIR, EXTERNAL_DIR
+
 st.set_page_config(layout="wide", page_title="Sleep Feature Validator Pro")
 
 # --- SIDEBAR ---
 st.sidebar.title("🛠️ Validator Pro")
-csv_files = du.get_file_lists()
+csv_files = du.get_file_lists(INTERNAL_DIR)
 selected_csv = st.sidebar.selectbox("1. Chọn file Features:", csv_files)
 
 # Logic tìm file
@@ -23,7 +25,7 @@ if not psg_f:
 # --- LOAD DATA ---
 try:
     raw = du.load_mne_raw(psg_f, hypno_f)
-    df_features = pd.read_csv(os.path.join(du.CSV_DIR, selected_csv))
+    df_features = pd.read_csv(os.path.join(INTERNAL_DIR, selected_csv))
 
     # Header Info
     start_t = raw.info['meas_date']

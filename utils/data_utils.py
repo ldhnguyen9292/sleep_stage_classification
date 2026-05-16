@@ -3,7 +3,10 @@ import os
 import pandas as pd
 from datetime import timedelta
 
-EDF_DIR = 'sleep-edf-database-expanded-1.0.0/sleep-cassette'
+from config import BASE_DIR, INTERNAL_DIR, EXTERNAL_DIR
+
+origin_folder_path = 'sleep-edf-database-expanded-1.0.0'
+folder_names = ['sleep-cassette', 'sleep-telemetry']
 
 
 def get_file_lists(path):
@@ -13,7 +16,8 @@ def get_file_lists(path):
 
 def find_edf_files(selected_csv):
     patient_id = selected_csv.split('_')[-1].replace('.csv', '')
-    edf_files_in_dir = os.listdir(EDF_DIR)
+    edf_files_in_dir = os.listdir(os.path.join(
+        origin_folder_path, folder_names[0]))
 
     psg_file = next(
         (f for f in edf_files_in_dir if patient_id in f and 'PSG.edf' in f), None)
@@ -24,11 +28,12 @@ def find_edf_files(selected_csv):
 
 
 def load_mne_raw(psg_name, hypno_name=None):
-    psg_path = os.path.join(EDF_DIR, psg_name)
+    psg_path = os.path.join(origin_folder_path, folder_names[0], psg_name)
     raw = mne.io.read_raw_edf(psg_path, preload=False, verbose=False)
 
     if hypno_name:
-        hypno_path = os.path.join(EDF_DIR, hypno_name)
+        hypno_path = os.path.join(
+            origin_folder_path, folder_names[0], hypno_name)
         annot = mne.read_annotations(hypno_path)
         raw.set_annotations(annot)
 

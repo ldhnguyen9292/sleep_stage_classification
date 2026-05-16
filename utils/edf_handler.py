@@ -48,36 +48,71 @@ def generate_epochs_from_edf(psg_file, hyp_file, duration=30):
     return epochs
 
 
-def filter_wake_epochs(epochs, wake_id=0, padding_minutes=30):
-    # 1. Lấy danh sách nhãn của tất cả epochs
+def filter_wake_epochs(epochs, wake_id=0, padding_minutes=0, max_break_minutes=30):
+    """
+    Duyệt tuần tự từ đầu đêm. Nếu gặp một chuỗi Wake dài hơn max_break_minutes 
+    sau khi đã từng đi ngủ, ta coi như đoạn trước đó là chập chờn và RESET lại điểm bắt đầu.
+    """
     labels = epochs.events[:, -1]
+    total_len = len(labels)
 
-    # 2. Tìm vị trí các epoch không phải là Wake (0)
+    padding_epochs = int(padding_minutes * 60 / 30)
+    max_break_epochs = int(max_break_minutes * 60 / 30)
+
+    # Tìm epoch ngủ cuối cùng của cả đêm trước (để giữ mốc end_idx)
     non_wake_indices = np.where(labels != wake_id)[0]
-
     if len(non_wake_indices) == 0:
-        return epochs  # Trả về nguyên bản nếu cả đêm không ngủ (hiếm gặp)
-
-    # 3. Xác định mốc bắt đầu và kết thúc của vùng "ngủ"
-    first_sleep_idx = non_wake_indices[0]
+        return epochs
     last_sleep_idx = non_wake_indices[-1]
 
-    # 4. Tính toán phần đệm (padding)
-    # 30 phút = 1800 giây. Mỗi epoch 30s => padding = 1800 / 30 = 60 epochs
-    padding_epochs = int(padding_minutes * 60 / 30)
+    # Duyệt tìm start_idx tối ưu
+    first_sleep_idx = non_wake_indices[0]
+    current_wake_streak = 0
+    has_slept = False
 
+    for i in range(total_len):
+        if labels[i] != wake_id:
+            if not has_slept:
+                # Lần đầu tiên trong đêm chìm vào giấc ngủ
+                first_sleep_idx = i
+                has_slept = True
+
+            # Nếu đang ngủ mà gặp vài epoch Wake ngắn rồi ngủ lại (chưa quá ngưỡng)
+            # thì reset chuỗi đếm Wake về 0
+            current_wake_streak = 0
+
+        else:
+            # Nếu gặp nhãn Wake
+            if has_slept:
+                current_wake_streak += 1
+
+                # CHÍNH XÁC Ở ĐÂY: Nếu chuỗi Wake ở giữa vượt quá ngưỡng (ví dụ 30 phút)
+                if current_wake_streak >= max_break_epochs:
+                    # Coi như đoạn ngủ chập chờn trước đó không tính.
+                    # Đặt lại trạng thái: Chưa ngủ, để tìm điểm ngủ tiếp theo ở phía sau
+                    has_slept = False
+                    current_wake_streak = 0
+                    print(
+                        f"--> Gặp đoạn Wake dài {max_break_minutes} phút tại epoch {i}. Reset lại điểm bắt đầu.")
+
+    # Sau khi chạy hết vòng lặp, first_sleep_idx sẽ giữ mốc của đoạn ngủ KIÊN TRÌ cuối cùng
+
+    # Tính toán start và end kèm padding
     start_idx = max(0, first_sleep_idx - padding_epochs)
-    end_idx = min(len(epochs) - 1, last_sleep_idx + padding_epochs)
+    end_idx = min(total_len - 1, last_sleep_idx + padding_epochs)
 
-    # 5. Cắt lấy vùng dữ liệu mong muốn
+    # Kiểm tra bảo vệ nếu vô tình start_idx > end_idx
+    if start_idx >= end_idx:
+        start_idx = max(0, non_wake_indices[0] - padding_epochs)
+
     filtered_epochs = epochs[start_idx: end_idx + 1]
-
     print(
-        f"Đã cắt bớt Wake. Từ {len(epochs)} còn {len(filtered_epochs)} epochs.")
+        f"Đã lọc Wake tuần tự. Từ {total_len} còn {len(filtered_epochs)} epochs.")
+
     return filtered_epochs
 
 
-def feature_extraction(epochs_obj):
+def feature_extraction(epochs_obj, telemetry=False):
     # Lay thong tin co ban tu doi tuong epochs
     meas_date = epochs_obj.info['meas_date']  # Thời gian bắt đầu ghi file
     sfreq = epochs_obj.info['sfreq']         # Tần số lấy mẫu (100Hz)
@@ -124,6 +159,9 @@ def feature_extraction(epochs_obj):
 
         # Trich xuat EMG (Kênh 4)
         f['emg_rms'] = np.sqrt(np.mean(data[i, 4, :]**2))
+
+        # Dung thuoc hay khong? Neu telemetry thi 1, cassette thi 0
+        f['used'] = 1 if telemetry else 0
 
         # Gán nhãn sleep stage
         f['label'] = labels[i]
