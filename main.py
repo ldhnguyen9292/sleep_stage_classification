@@ -88,14 +88,14 @@ def main() -> None:
     logger.info("Global seed set to %d", SEED)
 
     # ── Device ────────────────────────────────────────────────────────────────
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type == "cuda":
-        logger.info("GPU: %s  (VRAM: %.1f GB)",
-                    torch.cuda.get_device_name(0),
-                    torch.cuda.get_device_properties(0).total_memory / 1e9)
+    device = None
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
     else:
-        logger.info(
-            "No GPU detected — training on CPU (slower but fully functional)")
+        device = torch.device("cpu")
+    logger.info("Using device: %s", device)
 
     # ── Discover & split files ────────────────────────────────────────────────
     all_files = discover_files(INTERNAL_DIR)
@@ -150,7 +150,7 @@ def main() -> None:
         replacement=True,
     )
 
-    use_pin = PIN_MEMORY and device.type == "cuda"
+    use_pin = PIN_MEMORY and device.type in ["cuda", "mps"]
     train_loader = DataLoader(
         train_dataset,
         batch_size=BATCH_SIZE,

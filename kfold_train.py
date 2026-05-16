@@ -85,8 +85,15 @@ def get_majority_labels(files):
 
 def run_kfold(n_splits: int = K_FOLDS) -> None:
     set_seed(SEED)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info("Device: %s | K=%d folds", device, n_splits)
+
+    device = None
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    logger.info("Using device: %s", device)
 
     all_files = discover_files(INTERNAL_DIR)
     majority_labels = get_majority_labels(all_files)
@@ -127,7 +134,7 @@ def run_kfold(n_splits: int = K_FOLDS) -> None:
         sampler = WeightedRandomSampler(
             sample_weights, len(train_ds), replacement=True)
 
-        use_pin = PIN_MEMORY and device.type == "cuda"
+        use_pin = PIN_MEMORY and device.type in ["cuda", "mps"]
         train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, sampler=sampler,
                                   num_workers=NUM_WORKERS, pin_memory=use_pin)
         val_loader = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
